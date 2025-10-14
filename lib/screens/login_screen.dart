@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart';
+// 3.1 Importar librería para Timer
+import 'dart:async';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,14 +16,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Controladores (cerebro) de la animación
   StateMachineController? controller;
-  SMIBool? isChecking;
-  SMIBool? isHandsUp;
-  SMITrigger? trigSuccess;
-  SMITrigger? trigFail;
+  // SMI: State Machine Input
+  SMIBool? isChecking; // Activa el modo "Chismoso"
+  SMIBool? isHandsUp; // Se tapa los ojos
+  SMITrigger? trigSuccess; // Se emociona
+  SMITrigger? trigFail; // Se pone sad
+
+  // 2.1 Variable para recorrido de la mirada
+  SMINumber? numLook; // 0.80 en tu asset
 
   // 1) FocusNode
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
+
+  // 3.2 Timer para detener la mirada al dejar de teclear
+  Timer? _typingDebounce;
 
   // 2) Listeners (0yentes/Chismosos)
   @override
@@ -38,6 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // Ningún campo seleccionado
       isChecking!.change(false);
       isHandsUp!.change(false);
+      // 2.2 Mirada neutral al enfocar email
+      numLook?.value = 50.0;
     } else if (_emailFocus.hasFocus) {
       // Email seleccionado
       isChecking!.change(true);
@@ -54,11 +65,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 4) Liberación de recursos / limpieza de 
+  // 4) Liberación de recursos / limpieza de
   @override
   void dispose() {
     _emailFocus.dispose();
     _passwordFocus.dispose();
+    _typingDebounce?.cancel();
     super.dispose();
   }
 
@@ -86,7 +98,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   isChecking = controller!.findSMI('isChecking');
                   isHandsUp = controller!.findSMI('isHandsUp');
-                },
+                  trigSuccess = controller!.findSMI('trigSucess');
+                  trigFail = controller!.findSMI('trigFail');
+                  // 2.3 Enlazar variable con la animación
+                  numLook = controller!.findSMI('numLook');
+                }, // clamp: función que limita un número dentro de un rango definido,
+                // devolviendo el valor original si está dentro de los límites,
+                // el límite inferior si es menor o el límite superior si es mayor.
                 fit: BoxFit.contain,
               ),
             ),
@@ -105,7 +123,28 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 onChanged: (value) {
                   if (isHandsUp != null) isHandsUp!.change(false);
+
+                  // 2.4 Implementación numLook
                   if (isChecking != null) isChecking!.change(true);
+
+                  // Ajuste de límite de 0 a 100
+                  // 80 es una medida de calibración
+                  final look = (value.length / 80.0 * 100.0).clamp(
+                    0.0,
+                    100.0,
+                  );
+                  numLook?.value = look;
+
+                  // 3.3 Debounce: si vuelve a teclear, reinicia el contador
+                  _typingDebounce
+                      ?.cancel(); // Cancela cualquier timer existente
+                  _typingDebounce = Timer(const Duration(milliseconds: 3000), (){
+                    if(!mounted) {
+                      return; // Si la pantalla se cierra 
+                    }
+                    // Mirada neutra
+                    isChecking?.change(false);
+                  });
                 }),
 
             const SizedBox(height: 10),
